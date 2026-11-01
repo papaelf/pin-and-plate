@@ -702,8 +702,8 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
   let idb = null;
   function openIDB() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open("pinplate", 1);
-      r.onupgradeneeded = () => { r.result.createObjectStore("docs"); r.result.createObjectStore("photos"); };
+      const r = indexedDB.open("pinplate", 2);
+      r.onupgradeneeded = () => { ["docs", "photos", "outbox", "kv"].forEach(n => { if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); }); };
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
     });
@@ -717,10 +717,18 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
       t.onabort = () => rej(t.error);
     });
   }
+  // Every save is stamped with the time, so sync can tell which copy is newer.
   function saveDoc(path, data) {
+    data = { ...data, _ts: Date.now() };
     if (path.startsWith("days/")) S.days[path.slice(5)] = data;
     if (!idb) return;
-    tx("docs", "readwrite", st => st.put(clone(data), path)).catch(() => toast("Couldn't save. Your phone may be out of storage."));
+    tx("docs", "readwrite", st => st.put(clone(data), path))
+      .then(() => { if (syncOn()) queueSync(path); })
+      .catch(() => toast("Couldn't save. Your phone may be out of storage."));
+  }
+  function applyDoc(path, data) {
+    if (path.startsWith("days/")) S.days[path.slice(5)] = data;
+    else if (path === "meta/prefs") applyPrefs(data);
   }
   const saveDay = (k, day) => saveDoc("days/" + k, day);
   const savePrefs = () => saveDoc("meta/prefs", { custom: S.custom, notes: S.notes, favs: favs(), photos: S.photos, cfg: S.cfg || {} });
@@ -737,23 +745,206 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
       pk.forEach((k, i) => { photoURLs[k] = URL.createObjectURL(pv[i]); });
       S.mode = "phone";
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      SY.cfg = (await tx("kv", "readonly", st => st.get("sync"))) || null;
+      SY.last = (await tx("kv", "readonly", st => st.get("syncLast"))) || 0;
     } catch (e) {
       S.mode = "nostore";
       toast("This browser is blocking storage, so workouts won't be kept.");
     }
     S.loaded = true;
     renderAll();
+    syncNow();
   }
   async function putPhoto(blob) {
     const id = uid();
     await tx("photos", "readwrite", st => st.put(blob, id));
     photoURLs[id] = URL.createObjectURL(blob);
+    if (syncOn()) queueSync("photo:" + id);
     return id;
   }
   function dropPhoto(id) {
     if (!id || !idb) return;
     tx("photos", "readwrite", st => st.delete(id)).catch(() => {});
+    tx("outbox", "readwrite", st => st.delete("photo:" + id)).catch(() => {});
     if (photoURLs[id]) { URL.revokeObjectURL(photoURLs[id]); delete photoURLs[id]; }
+    if (syncOn()) sbFetch(`/storage/v1/object/photos/${SY.cfg.session.user.id}/${id}.jpg`, { method: "DELETE" }).catch(() => {});
+  }
+
+  // ---------- Cloud sync (your own free Supabase project) ----------
+  // The phone stays the main copy: everything saves locally first, then uploads when there's signal.
+  // Changes wait in an "outbox" until the server confirms them. Pulls are incremental by server time,
+  // and when the same day was edited in two places the newer edit wins.
+  const SY = { cfg: null, busy: false, last: 0, err: "", timer: null };
+  const syncOn = () => !!(SY.cfg && SY.cfg.url && SY.cfg.session && SY.cfg.session.access_token);
+  const sbBase = () => SY.cfg.url.replace(/\/+$/, "");
+  const saveSyncCfg = () => tx("kv", "readwrite", st => st.put(SY.cfg, "sync"));
+  function queueSync(key) {
+    tx("outbox", "readwrite", st => st.put(Date.now(), key)).then(() => scheduleSync(2500)).catch(() => {});
+  }
+  function scheduleSync(ms) { clearTimeout(SY.timer); SY.timer = setTimeout(() => syncNow(), ms); }
+  async function refreshSession() {
+    const res = await fetch(sbBase() + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST", headers: { apikey: SY.cfg.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: SY.cfg.session.refresh_token }),
+    });
+    if (res.status === 400 || res.status === 401) {
+      SY.cfg.session = null; await saveSyncCfg(); renderSync();
+      throw new Error("You were signed out. Sign in again to keep syncing.");
+    }
+    if (!res.ok) throw new Error("Couldn't reach the sync server.");
+    await setSession(await res.json());
+  }
+  function setSession(j) {
+    SY.cfg.session = {
+      access_token: j.access_token, refresh_token: j.refresh_token,
+      expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600),
+      user: { id: j.user.id, email: j.user.email },
+    };
+    return saveSyncCfg();
+  }
+  async function sbFetch(path, opts = {}, retried = false) {
+    if (Date.now() / 1000 > SY.cfg.session.expires_at - 60) await refreshSession();
+    const res = await fetch(sbBase() + path, { ...opts, headers: { apikey: SY.cfg.key, Authorization: "Bearer " + SY.cfg.session.access_token, ...(opts.headers || {}) } });
+    if (res.status === 401 && !retried) { await refreshSession(); return sbFetch(path, opts, true); }
+    return res;
+  }
+  async function errText(res) {
+    let j = {};
+    try { j = await res.json(); } catch (e) {}
+    const m = j.message || j.msg || j.error_description || j.error || "";
+    if (res.status === 404 || /relation|does not exist|schema cache|Bucket not found/i.test(m)) return "Sync isn't set up yet. Run the setup SQL in Supabase.";
+    if (res.status === 401 || res.status === 403) return "The server refused the sync. Check the setup SQL ran.";
+    return m || `Sync failed (${res.status})`;
+  }
+  async function authCall(kind, email, password) {
+    const path = kind === "signup" ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+    const res = await fetch(sbBase() + path, { method: "POST", headers: { apikey: SY.cfg.key, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.msg || j.error_description || j.message || (res.status === 400 ? "Wrong email or password." : `Sign-in failed (${res.status})`));
+    if (!j.access_token) return "confirm";
+    await setSession(j);
+    SY.cfg.cursor = null;
+    await saveSyncCfg();
+    await queueEverything();
+    await syncNow(true);
+    return "ok";
+  }
+  // First sign-in on a phone: everything already on it gets uploaded.
+  async function queueEverything() {
+    const now = Date.now();
+    const dk = await tx("docs", "readonly", st => st.getAllKeys());
+    const pk = await tx("photos", "readonly", st => st.getAllKeys());
+    await tx("outbox", "readwrite", st => { dk.forEach(k => st.put(now, k)); pk.forEach(k => st.put(now, "photo:" + k)); return null; });
+  }
+  async function clearOutbox(pairs) {
+    await tx("outbox", "readwrite", st => { pairs.forEach(([k, stamp]) => { const r = st.get(k); r.onsuccess = () => { if (r.result === stamp) st.delete(k); }; }); return null; });
+  }
+  async function syncNow(manual) {
+    if (!syncOn() || SY.busy) return;
+    if (!navigator.onLine) { SY.err = "offline"; renderSync(); return; }
+    SY.busy = true; SY.err = ""; renderSync();
+    try {
+      const me = SY.cfg.session.user.id;
+      // 1. Upload waiting changes
+      const keys = await tx("outbox", "readonly", st => st.getAllKeys());
+      const stamps = await tx("outbox", "readonly", st => st.getAll());
+      const docs = [], photos = [];
+      keys.forEach((k, i) => (k.startsWith("photo:") ? photos : docs).push([k, stamps[i]]));
+      for (let i = 0; i < docs.length; i += 100) {
+        const chunk = docs.slice(i, i + 100), rows = [];
+        for (const [k] of chunk) {
+          const d = await tx("docs", "readonly", st => st.get(k));
+          if (d) rows.push({ user_id: me, path: k, data: d, updated_at: new Date(d._ts || Date.now()).toISOString() });
+        }
+        if (rows.length) {
+          const res = await sbFetch("/rest/v1/docs?on_conflict=user_id,path", {
+            method: "POST", headers: { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(rows),
+          });
+          if (!res.ok) throw new Error(await errText(res));
+        }
+        await clearOutbox(chunk);
+      }
+      for (const pair of photos) {
+        const id = pair[0].slice(6), blob = await tx("photos", "readonly", st => st.get(id));
+        if (blob) {
+          const res = await sbFetch(`/storage/v1/object/photos/${me}/${id}.jpg`, { method: "POST", headers: { "Content-Type": "image/jpeg", "x-upsert": "true" }, body: blob });
+          if (!res.ok) throw new Error(await errText(res));
+        }
+        await clearOutbox([pair]);
+      }
+      // 2. Download anything newer from your other devices
+      let changed = false;
+      for (;;) {
+        const cur = SY.cfg.cursor;
+        const res = await sbFetch(`/rest/v1/docs?select=path,data,synced_at&order=synced_at.asc&limit=500${cur ? "&synced_at=gt." + encodeURIComponent(cur) : ""}`);
+        if (!res.ok) throw new Error(await errText(res));
+        const rows = await res.json();
+        for (const r of rows) {
+          const local = await tx("docs", "readonly", st => st.get(r.path));
+          if (!local || (r.data && (r.data._ts || 0) > (local._ts || 0))) {
+            await tx("docs", "readwrite", st => st.put(r.data, r.path));
+            applyDoc(r.path, r.data);
+            changed = true;
+          }
+          SY.cfg.cursor = r.synced_at;
+        }
+        await saveSyncCfg();
+        if (rows.length < 500) break;
+      }
+      // 3. Fetch machine photos this phone doesn't have yet
+      for (const id of new Set(Object.values(S.photos))) {
+        if (photoURLs[id]) continue;
+        const res = await sbFetch(`/storage/v1/object/authenticated/photos/${me}/${id}.jpg`);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        await tx("photos", "readwrite", st => st.put(blob, id));
+        photoURLs[id] = URL.createObjectURL(blob);
+        changed = true;
+      }
+      SY.last = Date.now();
+      await tx("kv", "readwrite", st => st.put(SY.last, "syncLast"));
+      if (changed) { renderMain(); if (S.sheet && S.sheet.type !== "settings" && !sheetHasFocus()) renderSheet(); }
+      if (manual) toast("Synced");
+    } catch (e) {
+      SY.err = (e && e.message) || "Sync failed";
+      if (/Failed to fetch|NetworkError|Load failed/i.test(SY.err)) SY.err = "offline";
+      if (manual) toast(SY.err === "offline" ? "No connection. It'll sync when you're back online." : SY.err);
+    }
+    SY.busy = false;
+    renderSync();
+    if (S.sheet && S.sheet.type === "settings") fillSyncStatus();
+  }
+  const agoMs = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 1440)} days ago`; };
+  async function fillSyncStatus() {
+    const el = $("#sync-status");
+    if (!el || !syncOn()) return;
+    const n = await tx("outbox", "count" in IDBObjectStore.prototype ? "readonly" : "readonly", st => st.count()).catch(() => 0);
+    el.innerHTML = SY.busy ? "Syncing…" : SY.err && SY.err !== "offline" ? `<span style="color:var(--danger)">${esc(SY.err)}</span>`
+      : `${SY.err === "offline" ? "Offline. " : ""}Last synced ${SY.last ? agoMs(SY.last) : "never"}${n ? ` · ${n} change${n === 1 ? "" : "s"} waiting to upload` : " · everything uploaded"}`;
+  }
+  function syncCardHTML() {
+    const guide = `<a href="https://github.com/papaelf/pin-and-plate#cloud-sync-setup" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">setup guide</a>`;
+    if (!SY.cfg || !SY.cfg.url) return `<div class="card">
+        <div class="card-h"><span class="k">Cloud sync</span><span class="v">Off</span></div>
+        <div class="hint" style="text-align:left">Back up every workout automatically to your own free Supabase project, so a lost phone or deleted icon loses nothing. Follow the ${guide}, then paste your project's details here.</div>
+        <div class="field"><label for="sb-url">Project URL</label><input id="sb-url" type="url" placeholder="https://xxxx.supabase.co" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="field"><label for="sb-key">Publishable key</label><input id="sb-key" type="text" placeholder="sb_publishable_… or the anon key" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <button class="primary" data-act="sync-save">Connect</button>
+      </div>`;
+    if (!syncOn()) return `<div class="card">
+        <div class="card-h"><span class="k">Cloud sync</span><span class="v">${esc(SY.cfg.url.replace(/^https?:\/\//, ""))}</span></div>
+        <div class="hint" style="text-align:left">Sign in to start syncing. First time? Tap <b>Create account</b>, then sign in with the same details on any other device.</div>
+        <div class="field"><label for="sb-email">Email</label><input id="sb-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(SY.cfg.lastEmail || "")}"></div>
+        <div class="field"><label for="sb-pass">Password</label><input id="sb-pass" type="password" autocomplete="current-password"></div>
+        <div class="fields2"><button class="primary" data-act="sync-signin">Sign in</button><button class="primary" data-act="sync-signup" style="background:var(--surface-2);color:var(--ink)">Create account</button></div>
+        <button class="linkbtn" data-act="sync-reset">Use a different project</button>
+      </div>`;
+    return `<div class="card">
+        <div class="card-h"><span class="k">Cloud sync</span><span class="v" style="color:var(--legs)">On</span></div>
+        <div class="hint" style="text-align:left">Signed in as <b>${esc(SY.cfg.session.user.email || "")}</b>. Workouts and photos upload automatically whenever you have signal.</div>
+        <div class="hint" style="text-align:left" id="sync-status"></div>
+        <div class="fields2"><button class="primary" data-act="sync-now">Sync now</button><button class="primary" data-act="sync-signout" style="background:var(--surface-2);color:var(--ink)">Sign out</button></div>
+      </div>`;
   }
 
   // ---------- Backup ----------
@@ -911,9 +1102,15 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
   function renderAll() { renderMain(); renderSync(); renderTabs(); }
   function renderSync() {
     const el = $("#sync");
-    const warn = S.mode === "nostore";
+    let txt, warn = false;
+    if (S.mode === "nostore") { txt = "Not saving"; warn = true; }
+    else if (!syncOn()) txt = "On this phone · Backup";
+    else if (SY.busy) txt = "Syncing…";
+    else if (SY.err === "offline") { txt = "Offline · will sync"; warn = true; }
+    else if (SY.err) { txt = "Sync problem"; warn = true; }
+    else txt = "Synced";
     el.className = "sync" + (warn ? " warn" : "");
-    el.innerHTML = `<i></i>${warn ? "Not saving" : "On this phone"} · Backup`;
+    el.innerHTML = `<i></i>${txt}`;
   }
   function renderTabs() {
     document.querySelectorAll(".tab").forEach(b => b.toggleAttribute("aria-current", false));
@@ -1337,10 +1534,11 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
     const photos = Object.keys(S.photos).length;
     return `<div class="sheet-head"><h2>Backup &amp; data</h2><button class="done" data-act="close">Done</button></div>
       <div class="sheet-body">
+        ${syncCardHTML()}
         <div class="card">
           <div class="card-h"><span class="k">Saved on this phone</span></div>
           <div class="stats"><div class="stat"><b>${days}</b><span>workout days</span></div><div class="stat"><b>${photos}</b><span>machine photos</span></div><div class="stat"><b id="usage">–</b><span>storage used</span></div></div>
-          <div class="hint" style="text-align:left">Pin &amp; Plate keeps everything on this iPhone, with no account and no internet needed. Deleting the app from your home screen deletes its data, so export a backup every few weeks and keep it in Files or iCloud Drive.</div>
+          <div class="hint" style="text-align:left">Everything saves on this iPhone first, so the app works with no signal. ${syncOn() ? "Cloud sync keeps a copy online too." : "Deleting the app from your home screen deletes this copy, so turn on cloud sync or export a backup every few weeks."}</div>
         </div>
         <div class="card">
           <div class="card-h"><span class="k">Training</span></div>
@@ -1725,8 +1923,40 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
       case "mlog": S.date = todayKey(); chooseExercise(el.dataset.ex); break;
       case "settings":
         openSheet({ type: "settings" });
+        fillSyncStatus();
         if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(e => { const u = $("#usage"); if (u && e.usage != null) u.textContent = (e.usage / 1048576).toFixed(1) + " MB"; }).catch(() => {});
         break;
+      case "sync-save": {
+        let url = ($("#sb-url").value || "").trim(), key = ($("#sb-key").value || "").trim();
+        if (url && !/^https?:\/\//.test(url)) url = "https://" + url;
+        if (!/^https:\/\/[^/]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url.replace(/\/+$/, "")) || key.length < 20) { toast("Paste the Project URL and the publishable key from Supabase."); break; }
+        SY.cfg = { url: url.replace(/\/+$/, ""), key, session: null, cursor: null };
+        saveSyncCfg().then(() => { renderSheet(); renderSync(); });
+        break;
+      }
+      case "sync-reset": SY.cfg = null; tx("kv", "readwrite", st => st.delete("sync")).then(() => { renderSheet(); renderSync(); }); break;
+      case "sync-signin": case "sync-signup": {
+        const email = ($("#sb-email").value || "").trim(), pass = $("#sb-pass").value || "";
+        if (!email || pass.length < 6) { toast("Enter your email and a password of at least 6 characters."); break; }
+        SY.cfg.lastEmail = email;
+        el.disabled = true;
+        authCall(act === "sync-signup" ? "signup" : "signin", email, pass)
+          .then(r => {
+            if (r === "confirm") toast("Check your email and tap the confirmation link, then come back and sign in.");
+            else toast(act === "sync-signup" ? "Account created. Syncing your workouts…" : "Signed in. Syncing…");
+            renderSheet(); renderSync(); fillSyncStatus();
+          })
+          .catch(e => { toast(/Failed to fetch|Load failed|NetworkError/i.test(e.message) ? "Couldn't reach Supabase. Check the Project URL and your connection." : e.message); el.disabled = false; });
+        break;
+      }
+      case "sync-now": syncNow(true); break;
+      case "sync-signout": {
+        const tok = SY.cfg.session && SY.cfg.session.access_token;
+        if (tok) fetch(sbBase() + "/auth/v1/logout", { method: "POST", headers: { apikey: SY.cfg.key, Authorization: "Bearer " + tok } }).catch(() => {});
+        SY.cfg.session = null; SY.cfg.cursor = null; SY.err = "";
+        saveSyncCfg().then(() => { renderSheet(); renderSync(); toast("Signed out. Your workouts stay on this phone."); });
+        break;
+      }
       case "export": exportBackup().catch(() => toast("Couldn't create the backup.")); break;
       case "export-csv": exportCSV().catch(() => toast("Couldn't create the spreadsheet.")); break;
       case "cfg": {
@@ -1835,7 +2065,12 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
   let rt;
   window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (S.tab === "progress") renderMain(); }, 150); });
   // Roll the log over to the new day if the app sat open past midnight.
-  document.addEventListener("visibilitychange", () => { updateWake(); });
+  document.addEventListener("visibilitychange", () => {
+    updateWake();
+    if (document.visibilityState === "visible" && Date.now() - SY.last > 30000) syncNow();
+  });
+  window.addEventListener("online", () => syncNow());
+  setInterval(() => { if (document.visibilityState === "visible" && Date.now() - SY.last > 120000) syncNow(); }, 30000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !S.sheet && S.date < todayKey() && S.lastSeenToday && S.date === S.lastSeenToday) { S.date = todayKey(); S.lastSeenToday = S.date; renderMain(); }
   });
