@@ -1,5 +1,5 @@
 // Offline support: keep the app shell and fonts on the phone so it opens with no signal.
-const CACHE = "pinplate-v5";
+const CACHE = "pinplate-v6";
 const FONTS = "pinplate-fonts";
 const SHELL = [
   "./",
