@@ -1045,6 +1045,51 @@ body {
     el.innerHTML = SY.busy ? "Syncing…" : SY.err && SY.err !== "offline" ? `<span style="color:var(--danger)">${esc(SY.err)}</span>`
       : `${SY.err === "offline" ? "Offline. " : ""}Last synced ${SY.last ? agoMs(SY.last) : "never"}${n ? ` · ${n} change${n === 1 ? "" : "s"} waiting to upload` : " · everything uploaded"}`;
   }
+  // Pasted text from the Supabase dashboard can carry spaces or invisible characters.
+  const cleanPaste = v => String(v || "").replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "");
+  // Accepts the Project URL, a dashboard link, or a URL with a path, and turns it into https://<ref>.supabase.co
+  function normalizeSbUrl(raw) {
+    let v = cleanPaste(raw);
+    if (!v) return { error: "Paste your Project URL. It looks like https://abcd1234.supabase.co" };
+    const dash = v.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+    if (dash) return { url: `https://${dash[1].toLowerCase()}.supabase.co` };
+    if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+    let u;
+    try { u = new URL(v); } catch (e) { return { error: "That doesn't look like a web address. It should look like https://abcd1234.supabase.co" }; }
+    let host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1") return { url: `${u.protocol}//${u.host}` };
+    if (host === "supabase.com" || host.endsWith(".supabase.com") && !/^[a-z0-9]{15,}\.supabase\.com$/.test(host)) {
+      return { error: "That's the Supabase website, not your project. In Supabase open Project Settings → Data API and copy the Project URL (https://….supabase.co)." };
+    }
+    if (/^[a-z0-9]{15,}\.supabase\.com$/.test(host)) host = host.replace(/\.supabase\.com$/, ".supabase.co");
+    return { url: `https://${host}` };
+  }
+  function checkKey(key) {
+    if (!key) return "Paste the publishable key too.";
+    if (/^sb_secret_/i.test(key)) return "That's the secret key. Never put it in an app. Copy the publishable key (sb_publishable_…) instead.";
+    if (/^eyJ/.test(key)) {
+      try { const role = JSON.parse(atob(key.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role; if (role === "service_role") return "That's the service_role key. Never put it in an app. Copy the anon or publishable key instead."; } catch (e) {}
+    }
+    if (key.length < 20) return "That key looks too short. Copy the whole publishable key.";
+    return "";
+  }
+  // Checks the address and the key before saving them, and says which one is wrong.
+  async function testConnection(url, key) {
+    const host = url.replace(/^https?:\/\//, "");
+    let res;
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+      res = await fetch(url + "/auth/v1/settings", { headers: { apikey: key }, signal: ctl.signal });
+      clearTimeout(t);
+    } catch (e) {
+      if (!navigator.onLine) return "You're offline. Connect to Wi-Fi or data and try again.";
+      return `Can't reach ${host}. Check the Project URL letter by letter. A brand-new project takes 1–2 minutes to start, and a paused one needs Restore on supabase.com.`;
+    }
+    if (res.status === 401 || res.status === 403) return "Your project answered, but it rejected the key. Copy the publishable key (or the anon key) again.";
+    if (res.status === 404) return "Something answered at that address, but it isn't a Supabase project. Check the Project URL.";
+    if (res.status >= 500) return "Your Supabase project is having trouble right now. If you just created it, wait a minute and try again.";
+    return "";
+  }
   function syncCardHTML() {
     const guide = `<a href="https://github.com/papaelf/pin-and-plate#cloud-sync-setup" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">setup guide</a>`;
     if (!SY.cfg || !SY.cfg.url) return `<div class="card">
@@ -2059,11 +2104,17 @@ body {
         if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(e => { const u = $("#usage"); if (u && e.usage != null) u.textContent = (e.usage / 1048576).toFixed(1) + " MB"; }).catch(() => {});
         break;
       case "sync-save": {
-        let url = ($("#sb-url").value || "").trim(), key = ($("#sb-key").value || "").trim();
-        if (url && !/^https?:\/\//.test(url)) url = "https://" + url;
-        if (!/^https:\/\/[^/]+$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url.replace(/\/+$/, "")) || key.length < 20) { toast("Paste the Project URL and the publishable key from Supabase."); break; }
-        SY.cfg = { url: url.replace(/\/+$/, ""), key, session: null, cursor: null };
-        saveSyncCfg().then(() => { renderSheet(); renderSync(); });
+        const url = normalizeSbUrl($("#sb-url").value), key = cleanPaste($("#sb-key").value);
+        if (url.error) { toast(url.error); break; }
+        const keyErr = checkKey(key);
+        if (keyErr) { toast(keyErr); break; }
+        el.disabled = true; el.textContent = "Checking…";
+        testConnection(url.url, key).then(problem => {
+          el.disabled = false; el.textContent = "Connect";
+          if (problem) { toast(problem); return; }
+          SY.cfg = { url: url.url, key, session: null, cursor: null };
+          saveSyncCfg().then(() => { renderSheet(); renderSync(); toast("Connected. Now create your account."); });
+        });
         break;
       }
       case "sync-reset": SY.cfg = null; tx("kv", "readwrite", st => st.delete("sync")).then(() => { renderSheet(); renderSync(); }); break;
@@ -2078,7 +2129,7 @@ body {
             else toast(act === "sync-signup" ? "Account created. Syncing your workouts…" : "Signed in. Syncing…");
             renderSheet(); renderSync(); fillSyncStatus();
           })
-          .catch(e => { toast(/Failed to fetch|Load failed|NetworkError/i.test(e.message) ? "Couldn't reach Supabase. Check the Project URL and your connection." : e.message); el.disabled = false; });
+          .catch(e => { toast(/Failed to fetch|Load failed|NetworkError/i.test(e.message) ? (navigator.onLine ? `Can't reach ${SY.cfg.url.replace(/^https?:\/\//, "")}. Tap "Use a different project" and paste the Project URL again.` : "You're offline. Connect and try again.") : e.message); el.disabled = false; });
         break;
       }
       case "sync-now": syncNow(true); break;
