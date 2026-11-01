@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#eceef1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101216" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0e0f11" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,56 +16,71 @@
 <title>Pin &amp; Plate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,400..900;1,62..125,400..900&display=swap">
 <style>
-/* Layout: one-thumb phone app. Sticky top bar, scrolling log, fixed tab bar, bottom sheets for picking and logging. */
+/* Rubber & Plates: phone-first gym log. Rubber-floor ground with colored flecks, bumper-plate colors
+   (push red, pull blue, legs yellow, core green), one sporty variable face used wide + italic for headings
+   and condensed for numbers. Floating dock, bottom sheets. */
 :root {
-  --bg: #eceef1;
+  --bg: #edeef0;
   --surface: #ffffff;
-  --surface-2: #e2e5ea;
-  --ink: #14171c;
-  --muted: #5b6472;
-  --line: #d2d7de;
-  --accent: #e4570f;
+  --surface-2: #e4e6ea;
+  --ink: #111316;
+  --muted: #5d6470;
+  --line: #d6d9df;
+  --accent: #f0431a;
+  --accent-hi: #ff6a3d;
   --accent-ink: #ffffff;
-  --accent-soft: #fbe3d4;
-  --heat-0: #dde1e7;
-  --heat-1: #f6c2a1;
-  --heat-2: #ee8d55;
-  --heat-3: #e4570f;
-  --push: #2d6bd6;
-  --pull: #7a4cc9;
-  --legs: #0f8a63;
-  --core: #a8701a;
-  --cardio: #cf2f68;
+  --accent-soft: #ffe4da;
+  --accent-line: #ffb79f;
+  --accent-glow: rgba(240, 67, 26, .45);
+  --heat-0: #dfe2e7;
+  --heat-1: #ffc2ab;
+  --heat-2: #ff8458;
+  --heat-3: #f0431a;
+  --push: #e0352b;
+  --pull: #2563eb;
+  --legs: #e9b10a;
+  --core: #12a06a;
+  --cardio: #8a93a3;
   --danger: #c92a2a;
   --scrim: rgba(12, 14, 18, .45);
-  --pad: #3b414b;
-  --m-ready: #2f9e6e;
-  --m-mid: #e3a23a;
-  --m-rest: #e4570f;
+  --pad: #2b2f36;
+  --m-ready: #14955f;
+  --m-mid: #d98a00;
+  --m-rest: #f0431a;
   --on-m: #ffffff;
-  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
-  --f-body: "Barlow", -apple-system, system-ui, "Segoe UI", sans-serif;
-  --r: 14px;
+  --fleck: rgba(17, 19, 22, .05);
+  --fleck-2: rgba(224, 53, 43, .22);
+  --fleck-3: rgba(37, 99, 235, .2);
+  --dock: rgba(255, 255, 255, .86);
+  --lift: 0 1px 2px rgba(17, 19, 22, .06);
+  --prb-ink: #170803;
+  --f-display: "Archivo", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --f-body: "Archivo", -apple-system, system-ui, "Segoe UI", sans-serif;
+  --r: 20px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #101216; --surface: #191c22; --surface-2: #23272f; --ink: #eef1f5; --muted: #959eac; --line: #2b3039;
-    --accent: #ff7a33; --accent-ink: #1b0c03; --accent-soft: #3a2216;
-    --heat-0: #20242b; --heat-1: #5a3220; --heat-2: #a4521f; --heat-3: #ff7a33;
-    --push: #6a9cf5; --pull: #a787ea; --legs: #3fc495; --core: #d9a24a; --cardio: #f06a97; --danger: #ff6b6b;
-    --scrim: rgba(0, 0, 0, .6); --pad: #555d6a; --m-ready: #3fbf88; --m-mid: #e6aa45; --m-rest: #ff7a33; --on-m: #0e1013;
+    --bg: #0e0f11; --surface: #17191d; --surface-2: #23262c; --ink: #f4f5f7; --muted: #9aa1ad; --line: #2a2e35;
+    --accent: #ff5a2b; --accent-hi: #ff7a4d; --accent-ink: #170803; --accent-soft: #3b1a10; --accent-line: #6b2a15; --accent-glow: rgba(255, 90, 43, .55);
+    --heat-0: #1f2227; --heat-1: #5b2414; --heat-2: #b0401c; --heat-3: #ff5a2b;
+    --push: #ff4d43; --pull: #4c8dff; --legs: #ffcf33; --core: #2fd08a; --cardio: #c5ccd8; --danger: #ff6b6b;
+    --scrim: rgba(0, 0, 0, .62); --pad: #59606d; --m-ready: #2fd08a; --m-mid: #ffb020; --m-rest: #ff5a2b; --on-m: #0e1013;
+    --fleck: rgba(255, 255, 255, .045); --fleck-2: rgba(255, 77, 67, .30); --fleck-3: rgba(76, 141, 255, .26);
+    --dock: rgba(23, 25, 29, .82); --lift: inset 0 1px 0 rgba(255, 255, 255, .045); --prb-ink: #170803;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #101216; --surface: #191c22; --surface-2: #23272f; --ink: #eef1f5; --muted: #959eac; --line: #2b3039;
-  --accent: #ff7a33; --accent-ink: #1b0c03; --accent-soft: #3a2216;
-  --heat-0: #20242b; --heat-1: #5a3220; --heat-2: #a4521f; --heat-3: #ff7a33;
-  --push: #6a9cf5; --pull: #a787ea; --legs: #3fc495; --core: #d9a24a; --cardio: #f06a97; --danger: #ff6b6b;
-  --scrim: rgba(0, 0, 0, .6); --pad: #555d6a; --m-ready: #3fbf88; --m-mid: #e6aa45; --m-rest: #ff7a33; --on-m: #0e1013;
-  color-scheme: dark;
+    --bg: #0e0f11; --surface: #17191d; --surface-2: #23262c; --ink: #f4f5f7; --muted: #9aa1ad; --line: #2a2e35;
+    --accent: #ff5a2b; --accent-hi: #ff7a4d; --accent-ink: #170803; --accent-soft: #3b1a10; --accent-line: #6b2a15; --accent-glow: rgba(255, 90, 43, .55);
+    --heat-0: #1f2227; --heat-1: #5b2414; --heat-2: #b0401c; --heat-3: #ff5a2b;
+    --push: #ff4d43; --pull: #4c8dff; --legs: #ffcf33; --core: #2fd08a; --cardio: #c5ccd8; --danger: #ff6b6b;
+    --scrim: rgba(0, 0, 0, .62); --pad: #59606d; --m-ready: #2fd08a; --m-mid: #ffb020; --m-rest: #ff5a2b; --on-m: #0e1013;
+    --fleck: rgba(255, 255, 255, .045); --fleck-2: rgba(255, 77, 67, .30); --fleck-3: rgba(76, 141, 255, .26);
+    --dock: rgba(23, 25, 29, .82); --lift: inset 0 1px 0 rgba(255, 255, 255, .045); --prb-ink: #170803;
+    color-scheme: dark;
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -359,6 +374,114 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
 .toast { position: fixed; z-index: 40; left: 50%; bottom: calc(140px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 10px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 15px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); text-align: center; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .loading { color: var(--muted); text-align: center; padding: 40px 0; }
+
+/* ===== Rubber & Plates makeover ===== */
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle, var(--fleck) .9px, transparent 1.4px),
+    radial-gradient(circle, var(--fleck-2) .9px, transparent 1.4px),
+    radial-gradient(circle, var(--fleck-3) .9px, transparent 1.4px);
+  background-size: 9px 9px, 29px 29px, 37px 37px;
+  background-position: 0 0, 11px 7px, 23px 19px;
+  font-family: var(--f-body);
+}
+#app { padding-block: 0 200px; }
+.top { background: linear-gradient(var(--bg) 78%, transparent); }
+.brand { font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 125%; font-size: 18px; letter-spacing: -.01em; gap: 10px; }
+.brand .amp { color: var(--accent); }
+.brand-mark { width: 28px; height: 28px; border: 0; border-radius: 50%;
+  background: radial-gradient(circle, var(--ink) 0 2.6px, var(--bg) 3.1px 6.4px, transparent 6.9px),
+              conic-gradient(var(--push) 0 25%, var(--pull) 0 50%, var(--legs) 0 75%, var(--core) 0); }
+.brand-mark::after { display: none; }
+.sync { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-weight: 600; font-size: 12.5px; color: var(--ink); white-space: nowrap; flex: none; }
+.sync i { background: var(--m-ready); }
+.sync.warn i { background: var(--m-mid); }
+.brand { white-space: nowrap; min-width: 0; }
+
+/* Headlines: wide italic caps, like a team jersey */
+.dayhead h1, .sheet-head h2, .mhead h2, .next-h, .empty h2 { font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 125%; letter-spacing: -.02em; text-transform: uppercase; }
+.dayhead h1 { font-size: 36px; }
+.dayhead .sub { font-weight: 500; }
+.sheet-head h2 { font-size: 21px; line-height: 1.05; }
+.mhead h2 { font-size: 26px; }
+.next-h { font-size: 24px; }
+.section-h { font-family: var(--f-display); font-style: italic; font-weight: 800; font-stretch: 112%; font-size: 12.5px; letter-spacing: .12em; display: flex; align-items: center; gap: 10px; }
+.section-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.grouplabel, .card-h .k, .stepper .lbl, .lbl2, .field label, .setting > span { font-family: var(--f-display); font-style: italic; font-weight: 800; font-stretch: 112%; letter-spacing: .1em; }
+
+/* Numbers: tall and condensed, like a gym scoreboard */
+.big-in, .stat b, .tile b, .readout b, .maxline b, .rm .wt, .wrow .wt, .setrow .v, .setchip, .next b, .hline .dt, .row .t, .rec-row .v {
+  font-family: var(--f-display); font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.big-in { font-size: 70px; letter-spacing: -.01em; }
+.stat b { font-size: 26px; }
+.tile b { font-size: 36px; }
+.readout b { font-size: 48px; }
+.maxline b { font-size: 34px; }
+.setrow .v { font-size: 24px; }
+.setchip { font-size: 17px; border-radius: 10px; padding: 5px 10px; }
+.setchip small, .setrow .was, .setrow .v small { font-stretch: 100%; font-weight: 600; }
+.entry-name, .excard .n, .mrow .nm, .hday-date { font-family: var(--f-display); font-weight: 800; font-stretch: 100%; letter-spacing: -.015em; }
+.entry-name { font-size: 19px; }
+.excard .n { font-size: 16px; }
+.hday-date { font-style: italic; font-stretch: 112%; text-transform: uppercase; font-size: 17px; }
+
+/* Surfaces */
+.card, .entry, .stepper, .tile, .heat-wrap, .chart-card, .rows, .hday, .body-wrap, .form, .excard, .mrow, .setrow { box-shadow: var(--lift); }
+.card, .entry, .stepper, .tile, .heat-wrap, .chart-card, .rows, .hday, .body-wrap, .form { border-radius: var(--r); }
+.excard, .mrow, .setrow { border-radius: 16px; }
+.entry-row .art, .mrow .art { border-radius: 14px; }
+.art { background: var(--surface-2); }
+.tag { font-family: var(--f-display); font-style: italic; font-weight: 800; font-stretch: 112%; letter-spacing: .08em; font-size: 11px; }
+.tag::before { width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle, var(--surface) 0 2px, var(--g, var(--muted)) 2.6px); }
+.fchip.dot::before { border-radius: 50%; }
+.fchip { font-weight: 700; }
+.seg { border-radius: 14px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); box-shadow: none; }
+.empty { border-radius: var(--r); border-width: 1.5px; }
+.empty::before { content: ""; display: block; width: 58px; height: 58px; margin: 0 auto 14px; border-radius: 50%; opacity: .9;
+  background: radial-gradient(circle, var(--bg) 0 5px, var(--surface-2) 5.5px 13px, transparent 13.5px),
+              conic-gradient(var(--push) 0 25%, var(--pull) 0 50%, var(--legs) 0 75%, var(--core) 0); }
+
+/* Controls */
+.step-btn { height: 60px; border-radius: 18px; font-family: var(--f-display); font-stretch: 72%; font-weight: 800; font-size: 26px; transition: transform .08s ease, background .15s; }
+.step-btn:active { transform: scale(.93); }
+.primary, .fab { font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 112%; letter-spacing: .03em;
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent)); color: var(--accent-ink);
+  box-shadow: 0 12px 26px -12px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, .28); transition: transform .1s ease, filter .1s; }
+.primary:active, .fab:active { transform: scale(.97); filter: brightness(.95); }
+.primary[style*="surface-2"] { box-shadow: none; font-stretch: 100%; }
+.fab { border-radius: 999px; height: 58px; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+.fab svg { background: rgba(255, 255, 255, .22); border-radius: 50%; padding: 3px; width: 26px; height: 26px; }
+.wu-btn { border-radius: 16px; font-family: var(--f-display); font-style: italic; font-weight: 800; font-stretch: 112%; letter-spacing: .03em; text-transform: uppercase; font-size: 14px; }
+.next { background: linear-gradient(135deg, var(--accent-soft), transparent 140%); border: 1px solid var(--accent-line); border-radius: 16px; }
+.next button { font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 112%; text-transform: uppercase; letter-spacing: .04em; }
+.rm[aria-pressed="true"] { background: linear-gradient(180deg, var(--accent-hi), var(--accent)); }
+
+/* Floating dock */
+.tabs { left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding-bottom: 0; max-width: 576px; margin: 0 auto;
+  border: 1px solid var(--line); border-radius: 26px; background: var(--dock);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); box-shadow: 0 14px 34px -14px rgba(0, 0, 0, .55); }
+.tab { height: 64px; font-family: var(--f-display); font-style: italic; font-weight: 800; font-stretch: 112%; font-size: 10.5px; letter-spacing: .08em; }
+.tab svg { width: 50px; height: 30px; padding: 4px 13px; border-radius: 999px; box-sizing: border-box; transition: background .2s; }
+.tab[aria-current="page"] svg { background: var(--accent-soft); }
+
+/* Sheets */
+.sheet { border-radius: 28px 28px 0 0; background: var(--bg); box-shadow: 0 -20px 40px -20px rgba(0, 0, 0, .5); }
+.sheet::before { content: ""; display: block; flex: none; width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 0; }
+.sheet-head { padding-top: 8px; }
+
+/* Rewards: PR badge, PR toast, freshly logged set */
+.prb { background: linear-gradient(90deg, var(--legs), var(--accent)); color: var(--prb-ink); font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 112%; }
+.toast { border-radius: 999px; font-weight: 600; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
+.toast.pr { background: linear-gradient(90deg, var(--legs), var(--accent)); color: var(--prb-ink); font-family: var(--f-display); font-style: italic; font-weight: 900; font-stretch: 112%; font-size: 17px; letter-spacing: .02em; padding: 12px 22px; box-shadow: 0 12px 30px -10px var(--accent-glow); }
+.toast.pr.on { animation: prpop .55s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes prpop { from { transform: translate(-50%, 0) scale(.55); } }
+.setrow.fresh { animation: fresh .7s ease-out; }
+@keyframes fresh { from { background: var(--accent-soft); transform: translateY(-6px); } }
+.sumgrid .stat b { font-size: 32px; }
+.sumgrid .stat:last-child.hl b { background: linear-gradient(90deg, var(--legs), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (prefers-reduced-motion: reduce) { .toast.pr.on, .setrow.fresh { animation: none; } .primary, .fab, .step-btn { transition: none; } }
 </style>
 </head>
 <body>
@@ -366,7 +489,7 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
 
 <div id="app">
   <header class="top">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Pin &amp; Plate</div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Pin <span class="amp">&amp;</span> Plate</span></div>
     <button id="sync" class="sync" data-act="settings" aria-label="Backup and data"></button>
   </header>
   <main id="main"></main>
@@ -1104,7 +1227,7 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
     const el = $("#sync");
     let txt, warn = false;
     if (S.mode === "nostore") { txt = "Not saving"; warn = true; }
-    else if (!syncOn()) txt = "On this phone · Backup";
+    else if (!syncOn()) txt = "Backup";
     else if (SY.busy) txt = "Syncing…";
     else if (SY.err === "offline") { txt = "Offline · will sync"; warn = true; }
     else if (SY.err) { txt = "Sync problem"; warn = true; }
@@ -1676,7 +1799,7 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
     let wn = 0;
     const rows = sets.map((x, i) => {
       const label = x.wu ? "W" : `Set ${++wn}`, was = !x.wu && prevWork[wn - 1];
-      return `<div class="setrow${sh.edit === i ? " editing" : ""}"><span class="i">${label}</span>
+      return `<div class="setrow${sh.edit === i ? " editing" : ""}${sh.fresh === i ? " fresh" : ""}"><span class="i">${label}</span>
         <button class="v" data-act="edit-set" data-i="${i}" aria-label="Edit ${label}">${fmt(x.w)} <small>lb</small> × ${x.r}${prs[(entry && entry.id) + ":" + i] ? '<span class="prb">PR</span>' : ""}${was ? `<span class="was">last time ${fmt(was.w)} × ${was.r}</span>` : ""}</button>
         <button class="xbtn" data-act="rm-set" data-i="${i}" aria-label="Delete ${label}">${ICON.x}</button></div>`;
     }).join("");
@@ -1798,7 +1921,15 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
 
   // ---------- Events ----------
   let toastT;
-  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2600); }
+  function toast(msg, kind) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.className = "toast";
+    void t.offsetWidth;
+    t.className = "toast on" + (kind ? " " + kind : "");
+    clearTimeout(toastT);
+    toastT = setTimeout(() => t.classList.remove("on"), kind === "pr" ? 3600 : 2600);
+  }
 
   document.addEventListener("click", ev => {
     const el = ev.target.closest("[data-act]");
@@ -1847,9 +1978,10 @@ svg.body { width: min(100%, 240px); height: auto; display: block; }
         });
         const wasEdit = sh.edit != null;
         sh.edit = null;
+        sh.fresh = idx;
         const after = prMap(sh.exId), key = sh.entryId + ":" + idx;
-        renderSheet(); renderMain(); updateWake();
-        if (after[key] && !before[key]) toast(after[key].includes("e") ? `New PR: ${fmt(roundLoad(e1rm({ w: sh.w, r: sh.r })))} lb est. max` : `New PR: heaviest ${ex.name} at ${fmt(sh.w)} lb`);
+        renderSheet(); sh.fresh = null; renderMain(); updateWake();
+        if (after[key] && !before[key]) toast(after[key].includes("e") ? `★ New PR · ${fmt(roundLoad(e1rm({ w: sh.w, r: sh.r })))} lb est. max` : `★ New PR · heaviest ${ex.name} at ${fmt(sh.w)} lb`, "pr");
         else toast(wasEdit ? "Set updated" : `${sh.wu ? "Warm-up" : "Set"} logged: ${fmt(sh.w)} × ${sh.r}`);
         break;
       }
